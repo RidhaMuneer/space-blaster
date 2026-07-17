@@ -4,7 +4,6 @@ A fast-paced, single-screen arcade space shooter built with **TypeScript**, **Vi
 
 ## Gameplay
 
-- **Goal:** survive the onslaught and reach a score of **25,000** to win.
 - **Hearts:** you start with a set number of hearts depending on the difficulty. Lose them all and it's game over.
 - **Levels & stages:** the game levels up as your score climbs, cycling through themed stages (Deep Space, Nebula, Alien Space, Void) with tougher spawns.
 - **Combos:** rack up quick consecutive kills for bonus points.

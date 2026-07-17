@@ -111,6 +111,10 @@ class Game {
   // leaderboardDirty: boolean = true;
   // leaderboardBtnBounds: { x: number; y: number; w: number; h: number } = { x: 0, y: 0, w: 0, h: 0 };
   menuBtnBounds: { x: number; y: number; w: number; h: number }[] = [];
+  diffCardBounds: { x: number; y: number; w: number; h: number }[] = [];
+  // On-screen action buttons (pause / resume / restart / menu), repopulated
+  // every frame by whichever overlay is drawn. Tapped/clicked via Controls.
+  actionButtons: { id: string; x: number; y: number; w: number; h: number }[] = [];
   backBtnBounds: { x: number; y: number; w: number; h: number } = { x: 0, y: 0, w: 0, h: 0 };
   WIN_SCORE = 25000;
   bossThisLevel: boolean = false;
@@ -798,6 +802,9 @@ class Game {
   drawScreen() {
     this.drawBackground();
 
+    // Rebuilt every frame by the overlays / HUD below.
+    this.actionButtons = [];
+
     if (this.state === "menu") {
       if (this.menuScreen === "main") { this.drawMainMenu(); return; }
       // if (this.menuScreen === "settings") { this.drawSettings(); return; } // settings disabled
@@ -857,13 +864,80 @@ class Game {
       autoFire: this.autoFire,
     });
 
-    if (this.state === "playing") this.drawBossBar();
+    if (this.state === "playing") {
+      this.drawBossBar();
+      this.drawInGamePauseButton();
+    }
 
     if (this.levelUpAnim) this.drawLevelUp();
 
     if (this.state === "paused") this.drawPauseOverlay();
     else if (this.state === "gameover") this.drawGameOver();
     else if (this.state === "won") this.drawWin();
+  }
+
+  // Draws a rounded button and registers its bounds for tap/click handling.
+  drawButton(id: string, label: string, x: number, y: number, w: number, h: number, accent: string) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.shadowColor = accent + "55";
+    ctx.shadowBlur = 12;
+    const grad = ctx.createLinearGradient(x, y, x, y + h);
+    grad.addColorStop(0, accent + "26");
+    grad.addColorStop(1, accent + "12");
+    ctx.fillStyle = grad;
+    this.roundRect(ctx, x, y, w, h, 10);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = accent + "aa";
+    ctx.lineWidth = 1.5;
+    this.roundRect(ctx, x, y, w, h, 10);
+    ctx.stroke();
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 15px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+    ctx.restore();
+    this.actionButtons.push({ id, x, y, w, h });
+  }
+
+  // Two side-by-side buttons centred horizontally at vertical position `y`.
+  drawButtonPair(
+    y: number,
+    left: { id: string; label: string; accent: string },
+    right: { id: string; label: string; accent: string }
+  ) {
+    const cx = this.canvas.width / 2;
+    const gap = 16;
+    const maxRow = Math.min(this.canvas.width - 40, 380);
+    const bw = (maxRow - gap) / 2;
+    const bh = 48;
+    const bx = cx - (bw * 2 + gap) / 2;
+    this.drawButton(left.id, left.label, bx, y, bw, bh, left.accent);
+    this.drawButton(right.id, right.label, bx + bw + gap, y, bw, bh, right.accent);
+  }
+
+  // Small pause button shown top-right during play (mainly for touch).
+  drawInGamePauseButton() {
+    const ctx = this.ctx;
+    const size = 36;
+    const x = this.canvas.width - size - 12;
+    const y = 64;
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+    this.roundRect(ctx, x, y, size, size, 9);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.4)";
+    ctx.lineWidth = 1;
+    this.roundRect(ctx, x, y, size, size, 9);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+    const bw = 4, bh = size * 0.44;
+    ctx.fillRect(x + size * 0.36 - bw / 2, y + (size - bh) / 2, bw, bh);
+    ctx.fillRect(x + size * 0.64 - bw / 2, y + (size - bh) / 2, bw, bh);
+    ctx.restore();
+    this.actionButtons.push({ id: "pause", x, y, w: size, h: size });
   }
 
   getActivePowerUp(): { type: string; remaining: number } | null {
@@ -1170,6 +1244,12 @@ class Game {
     const cx = this.canvas.width / 2;
     const t = Date.now() * 0.001;
 
+    // Title scales down on narrow screens so "SPACE BLASTER" always fits.
+    const titleSize = Math.min(54, (this.canvas.width - 40) / 9);
+    const starOff = Math.min(188, cx - 26);
+    const decoOuter = Math.min(170, cx - 34);
+    const decoInner = Math.min(50, decoOuter - 40);
+
     ctx.save();
     ctx.translate(cx, 90);
     const titleScale = 0.96 + 0.04 * Math.sin(t * 1.8);
@@ -1177,7 +1257,7 @@ class Game {
     ctx.shadowColor = "#00e5ff";
     ctx.shadowBlur = 50;
     ctx.fillStyle = "#00e5ff";
-    ctx.font = "bold 54px monospace";
+    ctx.font = `bold ${titleSize}px monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("SPACE  BLASTER", 0, 0);
@@ -1185,20 +1265,20 @@ class Game {
     ctx.restore();
 
     ctx.fillStyle = "rgba(0, 229, 255, 0.06)";
-    ctx.font = "bold 80px monospace";
+    ctx.font = `bold ${Math.min(80, titleSize * 1.5)}px monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.globalAlpha = 0.3 + 0.15 * Math.sin(t * 1.5);
-    ctx.fillText("\u2606", cx - 188, 91);
-    ctx.fillText("\u2606", cx + 188, 91);
+    ctx.fillText("\u2606", cx - starOff, 91);
+    ctx.fillText("\u2606", cx + starOff, 91);
     ctx.globalAlpha = 1;
 
     const decoY = 130;
     ctx.strokeStyle = `rgba(0, 200, 255, ${0.08 + 0.04 * Math.sin(t * 1.2)})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(cx - 170, decoY);
-    ctx.lineTo(cx - 50, decoY);
+    ctx.moveTo(cx - decoOuter, decoY);
+    ctx.lineTo(cx - decoInner, decoY);
     ctx.stroke();
     ctx.fillStyle = `rgba(0, 200, 255, ${0.15 + 0.08 * Math.sin(t * 1.5)})`;
     ctx.font = "14px monospace";
@@ -1206,8 +1286,8 @@ class Game {
     ctx.textBaseline = "middle";
     ctx.fillText("\u2605 \u00B7 \u2605 \u00B7 \u2605", cx, decoY);
     ctx.beginPath();
-    ctx.moveTo(cx + 50, decoY);
-    ctx.lineTo(cx + 170, decoY);
+    ctx.moveTo(cx + decoInner, decoY);
+    ctx.lineTo(cx + decoOuter, decoY);
     ctx.stroke();
 
     ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
@@ -1220,16 +1300,20 @@ class Game {
     const diffLabels = ["EASY", "NORMAL", "HARD"];
     const diffColors = ["#76ff03", "#00e5ff", "#ff1744"];
     const diffBgs = ["rgba(118, 255, 3, 0.08)", "rgba(0, 229, 255, 0.08)", "rgba(255, 23, 68, 0.08)"];
-    const diffDescs = ["8 hearts, slow", "5 hearts, balanced", "3 hearts, fast"];
+    const diffDescs = ["8 \u2764 slow", "5 \u2764 balanced", "3 \u2764 fast"];
 
-    const cardW = 160;
+    // Responsive layout: fit the three cards (and the buttons) to the screen
+    // width so everything stays on-screen and tappable on phones.
+    const availW = Math.min(this.canvas.width - 24, 540);
     const cardH = 54;
-    const cardGap = 18;
+    const cardGap = availW < 360 ? 8 : 18;
+    const cardW = Math.min(160, (availW - 2 * cardGap) / 3);
     const cardsTotalW = 3 * cardW + 2 * cardGap;
     const cardsStartX = cx - cardsTotalW / 2;
     const cardsY = 200;
 
     this.menuBtnBounds = [];
+    this.diffCardBounds = [];
 
     for (let i = 0; i < 3; i++) {
       const x = cardsStartX + i * (cardW + cardGap);
@@ -1260,16 +1344,18 @@ class Game {
       ctx.fillStyle = selected ? "rgba(255, 255, 255, 0.6)" : "rgba(255, 255, 255, 0.25)";
       ctx.font = "10px monospace";
       ctx.fillText(diffDescs[i], x + cardW / 2, cardsY + cardH / 2 + 14);
+
+      this.diffCardBounds.push({ x, y: cardsY, w: cardW, h: cardH });
     }
 
     const hintY = cardsY + cardH + 10;
     ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
     ctx.font = "10px monospace";
     ctx.textAlign = "center";
-    ctx.fillText("1 / 2 / 3 or \u2190 \u2192 to change  |  \u2191 \u2193 to navigate", cx, hintY);
+    ctx.fillText("Tap a mode  \u00b7  1 / 2 / 3 or \u2190 \u2192 to change", cx, hintY);
 
-    const btnW = 230;
-    const btnH = 46;
+    const btnW = Math.min(260, availW);
+    const btnH = 50;
     const btnGap = 14;
     const buttonsStartY = cardsY + cardH + 38;
 
@@ -1319,7 +1405,7 @@ class Game {
     ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
     ctx.font = "10px monospace";
     ctx.textAlign = "center";
-    ctx.fillText("Arrows / A,D / Mouse to move  |  ESC to pause  |  M to mute", cx, infoY);
+    ctx.fillText("Drag to move  ·  A/D or arrows  ·  auto-fire on", cx, infoY);
 
     const hs = HighScore.load();
     const ac = this.achievements.getUnlockedCount();
@@ -1631,15 +1717,17 @@ class Game {
     ctx.shadowBlur = 0;
     ctx.restore();
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
-    this.roundRect(ctx, cx - 170, cy - 10, 340, 50, 10);
-    ctx.fill();
+    this.drawButtonPair(
+      cy - 5,
+      { id: "resume", label: "▶ RESUME", accent: "#00e5ff" },
+      { id: "menu", label: "≡ QUIT", accent: "#ff5252" }
+    );
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-    ctx.font = "16px monospace";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+    ctx.font = "11px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("ESC to resume  |  Q to quit to menu", cx, cy + 14);
+    ctx.fillText("ESC to resume  ·  Q to quit", cx, cy + 74);
   }
 
   drawGameOver() {
@@ -1723,25 +1811,18 @@ class Game {
       bottomY += 24 + newAch.length * 22;
     }
 
-    const restartY = this.canvas.height - 50;
+    const restartY = this.canvas.height - 76;
+    this.drawButtonPair(
+      restartY,
+      { id: "restart", label: "↻ RESTART", accent: "#00e5ff" },
+      { id: "menu", label: "≡ MENU", accent: "#ff5252" }
+    );
 
-    if (Math.floor(Date.now() / 500) % 2 === 0) {
-      ctx.save();
-      ctx.translate(cx, restartY);
-      ctx.shadowColor = "rgba(255, 255, 255, 0.1)";
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
-      this.roundRect(ctx, -140, -18, 280, 36, 8);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.restore();
-
-      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-      ctx.font = "14px monospace";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("ENTER to restart  |  Q to menu", cx, restartY);
-    }
+    ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+    ctx.font = "11px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ENTER to restart  ·  Q for menu", cx, restartY + 62);
   }
 
   drawWin() {
@@ -1789,23 +1870,18 @@ class Game {
       ctx.fillText(`GRAZES: ${this.player.grazeTotal}`, cx, this.canvas.height / 2 + 38);
     }
 
-    if (Math.floor(Date.now() / 500) % 2 === 0) {
-      ctx.save();
-      ctx.translate(cx, this.canvas.height - 50);
-      ctx.shadowColor = "rgba(255, 255, 255, 0.1)";
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.06)";
-      this.roundRect(ctx, -140, -18, 280, 36, 8);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-      ctx.restore();
+    const btnY = this.canvas.height - 76;
+    this.drawButtonPair(
+      btnY,
+      { id: "restart", label: "↻ PLAY AGAIN", accent: "#00e676" },
+      { id: "menu", label: "≡ MENU", accent: "#ff5252" }
+    );
 
-      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-      ctx.font = "14px monospace";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("ENTER to restart  |  Q to menu", cx, this.canvas.height - 50);
-    }
+    ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+    ctx.font = "11px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ENTER to restart  ·  Q for menu", cx, btnY + 62);
   }
 }
 

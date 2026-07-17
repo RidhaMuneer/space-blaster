@@ -128,65 +128,91 @@ class Controls {
       }
     });
 
-    window.addEventListener("mousedown", () => {
-      if (this.game.state === "playing") {
-        this.game.player.isFiring = true;
+    // Unified pointer handler shared by mouse clicks and touch taps. `x`/`y`
+    // are viewport (client) coordinates, which match the canvas coordinate
+    // space since the canvas fills the window.
+    // Returns true if the tap was "consumed" by a UI element (button/menu),
+    // so the caller knows not to also treat it as a move/fire.
+    const pointerDown = (x: number, y: number): boolean => {
+      const g = this.game;
+
+      // On-screen action buttons (pause / resume / restart / menu) win first.
+      for (const b of g.actionButtons) {
+        if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+          this.runAction(b.id);
+          return true;
+        }
       }
-    });
+
+      if (g.state === "menu" && g.menuScreen === "main") {
+        const diffKeys = ["easy", "normal", "hard"];
+        for (let i = 0; i < g.diffCardBounds.length; i++) {
+          const c = g.diffCardBounds[i];
+          if (x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h) {
+            g.setDifficulty(diffKeys[i]);
+            return true;
+          }
+        }
+        for (let i = 0; i < g.menuBtnBounds.length; i++) {
+          const btn = g.menuBtnBounds[i];
+          if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+            g.menuSelection = i;
+            g.activateMenuSelection();
+            return true;
+          }
+        }
+        return true;
+      }
+
+      if (g.state === "playing") { g.player.isFiring = true; return false; }
+      return true;
+    };
+
+    window.addEventListener("mousedown", (e) => pointerDown(e.clientX, e.clientY));
     window.addEventListener("mouseup", () => {
       this.game.player.isFiring = false;
     });
 
-    window.addEventListener("click", (e) => {
-      if (this.game.state === "playing") {
-        this.game.player.isFiring = true;
-      }
-      if (this.game.state === "menu" && this.game.menuScreen === "main") {
-        const diffKeys = ["easy", "normal", "hard"];
-        const cardW = 160;
-        const cardGap = 18;
-        const cx = this.game.canvas.width / 2;
-        const cardsTotalW = 3 * cardW + 2 * cardGap;
-        const cardsStartX = cx - cardsTotalW / 2;
-        const cardsY = 200;
-
-        for (let i = 0; i < 3; i++) {
-          const x = cardsStartX + i * (cardW + cardGap);
-          if (e.clientX >= x && e.clientX <= x + cardW && e.clientY >= cardsY && e.clientY <= cardsY + 54) {
-            this.game.setDifficulty(diffKeys[i]);
-            return;
-          }
-        }
-
-        for (let i = 0; i < this.game.menuBtnBounds.length; i++) {
-          const btn = this.game.menuBtnBounds[i];
-          if (e.clientX >= btn.x && e.clientX <= btn.x + btn.w && e.clientY >= btn.y && e.clientY <= btn.y + btn.h) {
-            this.game.menuSelection = i;
-            this.game.activateMenuSelection();
-            return;
-          }
-        }
-
-        // Leaderboard button disabled for now (client-side only).
-        // const b = this.game.leaderboardBtnBounds;
-        // if (e.clientX >= b.x && e.clientX <= b.x + b.w && e.clientY >= b.y && e.clientY <= b.y + b.h) {
-        //   this.game.openLeaderboard();
-        //   return;
-        // }
-      }
-    });
+    window.addEventListener("touchstart", (e) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      const consumed = pointerDown(touch.clientX, touch.clientY);
+      // If the tap wasn't a button, and we're playing, steer toward the finger.
+      if (!consumed && this.game.state === "playing") this.game.mouseX = touch.clientX;
+      // Prevent the synthesized mouse events / double-tap zoom / scroll.
+      e.preventDefault();
+    }, { passive: false });
 
     window.addEventListener("touchmove", (e) => {
       if (this.game.state === "playing") {
-        this.game.mouseX = e.touches[0].clientX;
+        const touch = e.touches[0];
+        if (touch) this.game.mouseX = touch.clientX;
+        e.preventDefault();
       }
-    }, { passive: true });
+    }, { passive: false });
 
-    window.addEventListener("touchstart", () => {
-      if (this.game.state === "menu" && this.game.menuScreen === "main") {
-        this.game.startGame();
-      }
+    window.addEventListener("touchend", () => {
+      this.game.player.isFiring = false;
     });
+  }
+
+  // Dispatches an on-screen button press (pause / resume / restart / menu).
+  runAction(id: string) {
+    const g = this.game;
+    switch (id) {
+      case "pause":
+        if (g.state === "playing") g.togglePause();
+        break;
+      case "resume":
+        if (g.state === "paused") g.togglePause();
+        break;
+      case "restart":
+        g.resetGame();
+        break;
+      case "menu":
+        g.backToMenu();
+        break;
+    }
   }
 }
 
