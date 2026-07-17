@@ -1,4 +1,8 @@
+import { inject } from "@vercel/analytics";
 import Game from "./game/game";
+
+// Vercel Web Analytics (vanilla / non-framework usage).
+inject();
 
 const canvas = document.getElementById("game") as HTMLCanvasElement;
 
