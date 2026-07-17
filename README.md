@@ -15,7 +15,7 @@ A fast-paced, single-screen arcade space shooter built with **TypeScript**, **Vi
 <img width="1691" height="940" alt="Screenshot 2026-07-17 at 5 35 02 PM" src="https://github.com/user-attachments/assets/f7f7483a-6330-43f7-9521-0ed32b746894" />
 
 
-### Difficulty modes
+## Difficulty modes
 
 | Mode   | Hearts | Feel                    |
 | ------ | ------ | ----------------------- |
