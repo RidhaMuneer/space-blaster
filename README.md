@@ -10,6 +10,9 @@ A fast-paced, single-screen arcade space shooter built with **TypeScript**, **Vi
 - **Graze:** skim past enemy bullets without getting hit for extra points and style.
 
 ## Images
+<img width="1558" height="866" alt="Screenshot 2026-07-17 at 5 51 40 PM" src="https://github.com/user-attachments/assets/db57977e-3d33-49db-9ee9-91a8b790ef1d" />
+<img width="1558" height="869" alt="Screenshot 2026-07-17 at 5 52 00 PM" src="https://github.com/user-attachments/assets/b5866b00-75d8-47c3-9d0b-bebb685079fa" />
+<img width="1691" height="940" alt="Screenshot 2026-07-17 at 5 35 02 PM" src="https://github.com/user-attachments/assets/f7f7483a-6330-43f7-9521-0ed32b746894" />
 
 
 ### Difficulty modes
